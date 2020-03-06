@@ -9,6 +9,8 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
+# using python thread libray to ensure protocol can handle multiple clients properly
 class ChatServerProtocol(threading.Thread):
     def __init__(self, comm_socket, address):
         threading.Thread.__init__(self)
@@ -27,6 +29,7 @@ class ChatServerProtocol(threading.Thread):
         self.comm_socket = comm_socket
         self.address = address
 
+    # overriding threading run fuction to process messages received from client
     def run(self):
         print("we made it to run")
         while True:
@@ -35,17 +38,23 @@ class ChatServerProtocol(threading.Thread):
                 data = self.comm_socket.recv(1024).rstrip()
                 print(data)
                 try:
-                    cmd = data.decode('utf-8')
+                    packet_from_client = data.decode('utf-8')
                 except AttributeError:
-                    cmd = data
-                log.debug('Received command', cmd)
-                if not cmd:
+                    packet_from_client = data
+                log.debug('Received command', packet_from_client)
+                if not packet_from_client:
                     break
             except socket.error as err:
                 log.error('Receive error', err)
 
             try:
-                cmd, arg = cmd[:4].strip().upper(), cmd[4:].strip( ) or None
+                # seperating the command and arguments passed in from the
+                # client, see design PDU for message structure details
+                cmd = packet_from_client[:4].strip().upper() or None
+                arg = packet_from_client[4:].strip() or None
+
+                # retreive function from class. if function does not exist
+                # return a 500 error
                 func = getattr(self, cmd)
                 func(arg)
             except AttributeError as err:
@@ -53,10 +62,11 @@ class ChatServerProtocol(threading.Thread):
                 log.error('Receive error', err)
 
     def USER(self, user):
+        # TODO make this a try statement
         if not self.idle:
             # TODO add this error to the design document
             self.send_to_client('500 bad command.\r\n')
-        if not user:
+        elif not user:
             self.send_to_client('560 error receiving user.\r\n')
             log.error('error sending username')
         else:
@@ -69,7 +79,7 @@ class ChatServerProtocol(threading.Thread):
     def PASS(self, password):
         if not self.user_validated:
             self.send_to_client('500 Bad command.\r\n')
-        if not password:
+        elif not password:
             self.send_to_client('565 error authenticating password')
             log.error('error receiving password')
         else:
@@ -112,7 +122,7 @@ if __name__ == "__main__":
         client_socket.start()
         print("Got a connection from %s" % str(address))
 
-        msg = 'Sending a message to client'+ "\r\n"
+        msg = 'Sending a message to client \r\n'
         print("sent message to client")
         # client_socket.send_to_client(msg.encode('ascii'))
         client_socket.send_to_client(msg)
