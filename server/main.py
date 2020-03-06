@@ -12,7 +12,7 @@ logging.basicConfig(filename='server.log', level=logging.DEBUG)
 class ChatServerProtocol(threading.Thread):
     def __init__(self, comm_socket, address):
         threading.Thread.__init__(self)
-        # States
+        # DFA Protocol States
         self.idle = True
         self.user_validated = False
         self.authentication_validated = False
@@ -29,9 +29,7 @@ class ChatServerProtocol(threading.Thread):
 
     # overriding threading run fuction to process messages received from client
     def run(self):
-        print("we made it to run")
         while True:
-            print("we are in run")
             try:
                 data = self.comm_socket.recv(1024).rstrip()
                 print(data)
@@ -39,7 +37,7 @@ class ChatServerProtocol(threading.Thread):
                     packet_from_client = data.decode('utf-8')
                 except AttributeError:
                     packet_from_client = data
-                logging.debug('Received command' + packet_from_client)
+                logging.info('Received command' + packet_from_client)
                 if not packet_from_client:
                     break
             except socket.error as err:
@@ -51,13 +49,12 @@ class ChatServerProtocol(threading.Thread):
                 cmd = packet_from_client[:4].strip().upper() or None
                 arg = packet_from_client[4:].strip() or None
 
-                # retreive function from class. if function does not exist
-                # return a 500 error
+                # retreive function from class in a way that we can call it.
                 func = getattr(self, cmd)
                 func(arg)
             except AttributeError as err:
                 self.sendCommand('500 error.\r\n')
-                logging.error('Receive error', err)
+                logging.error('Receive error' + err)
 
     def USER(self, user):
         # TODO make this a try statement
@@ -75,6 +72,7 @@ class ChatServerProtocol(threading.Thread):
             self.user_validated = True
 
     def PASS(self, password):
+        # TODO make this a try catch statment
         if not self.user_validated:
             self.send_to_client('500 Bad command.\r\n')
         elif not password:
