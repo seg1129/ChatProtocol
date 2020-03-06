@@ -6,8 +6,7 @@ import socket
 import threading
 import logging
 
-log = logging.getLogger(__name__)
-
+logging.basicConfig(filename='server.log', level=logging.DEBUG)
 
 # using python thread libray to ensure protocol can handle multiple clients properly
 class ChatServerProtocol(threading.Thread):
@@ -40,11 +39,11 @@ class ChatServerProtocol(threading.Thread):
                     packet_from_client = data.decode('utf-8')
                 except AttributeError:
                     packet_from_client = data
-                log.debug('Received command', packet_from_client)
+                logging.debug('Received command' + packet_from_client)
                 if not packet_from_client:
                     break
             except socket.error as err:
-                log.error('Receive error', err)
+                logging.error('Receive error' + err)
 
             try:
                 # seperating the command and arguments passed in from the
@@ -58,7 +57,7 @@ class ChatServerProtocol(threading.Thread):
                 func(arg)
             except AttributeError as err:
                 self.sendCommand('500 error.\r\n')
-                log.error('Receive error', err)
+                logging.error('Receive error', err)
 
     def USER(self, user):
         # TODO make this a try statement
@@ -67,10 +66,10 @@ class ChatServerProtocol(threading.Thread):
             self.send_to_client('500 bad command.\r\n')
         elif not user:
             self.send_to_client('560 error receiving user.\r\n')
-            log.error('error sending username')
+            logging.error('error sending username')
         else:
             self.send_to_client('220 received username successfully.\r\n')
-            log.error('received username successfully')
+            logging.info('received username successfully')
             self.user = user
             self.idle = False
             self.user_validated = True
@@ -80,7 +79,7 @@ class ChatServerProtocol(threading.Thread):
             self.send_to_client('500 Bad command.\r\n')
         elif not password:
             self.send_to_client('565 error authenticating password')
-            log.error('error receiving password')
+            logging.error('error receiving password')
         else:
             self.user_password = password
             if self.check_user_cred():
@@ -88,7 +87,7 @@ class ChatServerProtocol(threading.Thread):
                 self.user_validated = False
                 self.authentication_validated = True
             else:
-                log.error('There was an issue with authentication')
+                logging.error('There was an issue with authentication')
 
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
@@ -100,7 +99,7 @@ class ChatServerProtocol(threading.Thread):
         self.comm_socket.send(message.encode('utf-8'))
 
 if __name__ == "__main__":
-    # a socket object using IPv4
+    # a socket object using IPv4 (AF_INET)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # get local host name

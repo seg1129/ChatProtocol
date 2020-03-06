@@ -7,7 +7,7 @@ import socket
 import time
 import logging
 
-log = logging.getLogger(__name__)
+logging.basicConfig(filename='client.log', level=logging.DEBUG)
 # a socket object using IPv4
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -29,6 +29,7 @@ message = 'USERPamina'
 s.send(message.encode('utf-8'))
 msg2 = s.recv(1024)
 print (msg2.decode('ascii'))
+time.sleep(5)
 # send password
 password_command = 'PASSILovePittbulls'
 s.send(password_command.encode('utf-8'))
