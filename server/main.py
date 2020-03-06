@@ -3,7 +3,6 @@
 # This is the server main file
 
 import socket
-import selectors
 import threading
 import logging
 
@@ -96,11 +95,11 @@ class ChatServerProtocol(threading.Thread):
             return True
         else:
             return False
+
     def send_to_client(self, message):
         self.comm_socket.send(message.encode('utf-8'))
 
 if __name__ == "__main__":
-    #sel = selectors.DefaultSelector()
     # a socket object using IPv4
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -112,12 +111,10 @@ if __name__ == "__main__":
     server.bind(('localhost', servPort))
 
     server.listen()
-    # using this to keep from blocking port allowing multiple requests to this client
-    # server.setblocking(False)
+
     while True:
         # accept connection
         clientsocket, address = server.accept()
-        # clientsocket.setblocking(False)
         client_socket = ChatServerProtocol(clientsocket, address)
         client_socket.start()
         print("Got a connection from %s" % str(address))
