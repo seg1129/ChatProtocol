@@ -34,5 +34,10 @@ password_command = 'PASSILovePittbulls'
 s.send(password_command.encode('utf-8'))
 pass_response = s.recv(1024)
 print (pass_response.decode('ascii'))
+
+bad_password_command = 'PASSILovePittbulls'
+s.send(bad_password_command.encode('utf-8'))
+bad_pass_response = s.recv(1024)
+print (bad_pass_response.decode('ascii'))
 time.sleep(5)
 s.close()
