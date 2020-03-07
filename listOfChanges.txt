@@ -1,0 +1,8 @@
+List of changes from the design document
+
+- if command is out of order, or command does not exist return 500
+- not using telnet string, just using utf-8
+- PDU length will be 1024 bytes - first 4 will be the command or error code
+- change name of downloading command to receive message... makes more sense.
+  so instead of DMSG it will be RMSG
+- 
