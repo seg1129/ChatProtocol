@@ -36,6 +36,16 @@ s.send(password_command.encode('utf-8'))
 pass_response = s.recv(1024)
 print (pass_response.decode('ascii'))
 
+rmsg_command = 'RMSG'
+s.send(rmsg_command.encode('utf-8'))
+rmsg_response = s.recv(1024)
+print (rmsg_response.decode('ascii'))
+
+smsg = 'SMSG Dolce:want to go to the doggy park Dolce?'
+s.send(smsg.encode('utf-8'))
+smsg_response = s.recv(1024)
+print(smsg_response.decode('ascii'))
+
 bad_password_command = 'PASSILovePittbulls'
 s.send(bad_password_command.encode('utf-8'))
 bad_pass_response = s.recv(1024)
