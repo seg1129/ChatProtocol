@@ -20,9 +20,14 @@ class ChatServerProtocol(threading.Thread):
         self.sending_message = False
         self.downloading_message = False
         self.error_processing = False
-        # hard coded usernames and password
+        # hard coded values
         self.usernames = ['Pamina', 'Dolce', 'George']
         self.password = 'ILovePittbulls'
+        # format - 'Sender:Receiver:message'
+        self.all_messages = ['Pamina:Dolce: Hello Pamina! How are you?',
+                            'Dolce:Pamina: I am good! how about you?',
+                            'George:Pamina: Hi Pamina',
+                            'Pamina:George: Hi George!']
         # client socket
         self.comm_socket = comm_socket
         self.address = address
@@ -86,6 +91,18 @@ class ChatServerProtocol(threading.Thread):
                 self.authentication_validated = True
             else:
                 logging.error('There was an issue with authentication')
+
+    # This command will search for messages for a user and send them to the client
+    def RMSG(self, usr_and_msg):
+        # TODO what state should we be in when message has been received and what
+        # should the state become?
+        for message in self.all_messages:
+            sender, receiver, message = message.split(':')
+            if (str(receiver) == str(self.user)):
+                message_to_client = 'SMSG' + sender + message
+                self.send_to_client(message_to_client)
+        # empty message variable
+        self.all_messages = []
 
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
