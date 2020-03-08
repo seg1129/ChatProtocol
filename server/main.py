@@ -96,13 +96,25 @@ class ChatServerProtocol(threading.Thread):
     def RMSG(self, usr_and_msg):
         # TODO what state should we be in when message has been received and what
         # should the state become?
+        # TODO add a try catch statement
         for message in self.all_messages:
             sender, receiver, message = message.split(':')
             if (str(receiver) == str(self.user)):
                 message_to_client = 'SMSG' + sender + message
                 self.send_to_client(message_to_client)
+        # TODO send back command response codes
         # empty message variable
         self.all_messages = []
+
+    def SMSG(self, usr_and_msg):
+        # TODO what state should we be in when message has been received and what
+        # should the state become?
+        # TODO add a try catch statement
+        receiver, message = usr_and_msg.split(':')
+        message_to_store = str(self.user) + ':' + receiver + ':' + message
+        self.all_messages.append(message_to_store)
+        # TODO send back command response codes
+
 
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
