@@ -46,20 +46,24 @@ class ChatServerProtocol(threading.Thread):
                 if not packet_from_client:
                     break
             except socket.error as err:
-                logging.error('Receive error' + err)
+                logging.error('Receive error' + str(err))
 
             try:
                 # seperating the command and arguments passed in from the
                 # client, see design PDU for message structure details
                 cmd = packet_from_client[:4].strip().upper() or None
                 arg = packet_from_client[4:].strip() or None
-
-                # retreive function from class in a way that we can call it.
-                func = getattr(self, cmd)
-                func(arg)
+                print("command:")
+                print(cmd)
+                if (str(cmd) == '200'):
+                    logging.info('client received message')
+                else:
+                    # retreive function from class in a way that we can call it.
+                    func = getattr(self, cmd)
+                    func(arg)
             except AttributeError as err:
-                self.sendCommand('500 error.\r\n')
-                logging.error('Receive error' + err)
+                self.send_to_client('500 error.\r\n')
+                logging.error('Receive error' + str(err))
 
     def USER(self, user):
         # TODO make this a try statement
@@ -71,6 +75,7 @@ class ChatServerProtocol(threading.Thread):
             logging.error('error sending username')
         else:
             self.send_to_client('220 received username successfully.\r\n')
+            print("user validated")
             logging.info('received username successfully')
             self.user = user
             self.idle = False
@@ -86,6 +91,7 @@ class ChatServerProtocol(threading.Thread):
         else:
             self.user_password = password
             if self.check_user_cred():
+                print("credentials have been verified")
                 self.send_to_client('230 user authenticated successfully')
                 self.user_validated = False
                 self.authentication_validated = True
@@ -100,8 +106,10 @@ class ChatServerProtocol(threading.Thread):
         for message in self.all_messages:
             sender, receiver, message = message.split(':')
             if (str(receiver) == str(self.user)):
-                message_to_client = 'SMSG' + sender + message
+                message_to_client = 'SMSG' + sender + ':' + message
                 self.send_to_client(message_to_client)
+                client_response = self.comm_socket.recv(1024)
+        self.send_to_client('255 end of messages')
         # TODO send back command response codes
         # empty message variable
         self.all_messages = []
@@ -145,8 +153,8 @@ if __name__ == "__main__":
         client_socket.start()
         print("Got a connection from %s" % str(address))
 
-        msg = 'Sending a message to client \r\n'
-        print("sent message to client")
+        # msg = 'Sending a message to client \r\n'
+        # print("sent message to client")
         # client_socket.send_to_client(msg.encode('ascii'))
         client_socket.send_to_client(msg)
         # server.close()
