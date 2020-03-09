@@ -5,4 +5,4 @@ List of changes from the design document
 - PDU length will be 1024 bytes - first 4 will be the command or error code
 - change name of downloading command to receive message... makes more sense.
   so instead of DMSG it will be RMSG
-- 
+- added 255 message when done sending messages to client when requesting all messages
