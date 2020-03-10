@@ -38,6 +38,7 @@ def send_message():
     s.send(data_to_send.encode('utf-8'))
     # TODO process this response and check for error code
     server_response = s.recv(1024)
+    print("your message has been sent\n")
 
 
 def receive_messages():
@@ -54,12 +55,16 @@ def receive_messages():
         s.send('250 received message'.encode('utf-8'))
         sender, message = message.split(':')
         print("message from {0}: {1}".format(sender, message))
+    print("end of new messages\n")
 
 def process_command(command):
     if (command.lower() == 'send'):
         send_message()
     if (command.lower() == 'receive'):
         receive_messages()
+    if (command.lower() == 'end'):
+        print("close")
+        s.close()
 
 if __name__ == "__main__":
     # a socket object using IPv4
@@ -74,18 +79,28 @@ if __name__ == "__main__":
 
 
     print("Hello! welcome to Chat Protocol, we have successfully connected with the chat server.\n")
-    print(" Please use one of the following hard-coded usernames:\n")
-    print("Pamina, Dolce or George\n")
+    print("Please use one of the following hard-coded usernames:")
+    print("Pamina, Dolce or George")
     print("Please enter username: ")
     process_username(str(input()))
-    print("Please use hard coded value, 'ILovePittbulls' for the password\n")
+    print("\nPlease use hard coded value, 'ILovePittbulls' for the password")
     print("Please enter Password: ")
     process_password(str(input()))
     print("Type 'send' to send a message to someone")
     print("Type 'receive' to receive messages")
-    process_command(str(input()))
-    while True:
-        print("Type 'send' to send a message to someone")
-        print("Type 'receive' to receive messages")
-        process_command(str(input()))
-    s.close()
+    print("Type 'end' to stop this program")
+    user_input = str(input()).lower()
+    if (user_input != 'end'):
+        process_command(user_input)
+        while True:
+            print("Type 'send' to send a message to someone")
+            print("Type 'receive' to receive messages")
+            print("Type 'end' to stop this program")
+            # process_command(str(input()))
+            user_input = str(input()).lower()
+            if (user_input == 'end'):
+                break
+            else:
+                process_command(user_input)
+    else:
+        s.close()
