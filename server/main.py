@@ -5,6 +5,8 @@
 import socket
 import threading
 import logging
+import sqlite3
+from sqlite3 import Error
 
 logging.basicConfig(filename='server.log', level=logging.DEBUG)
 
@@ -31,9 +33,14 @@ class ChatServerProtocol(threading.Thread):
         # client socket
         self.comm_socket = comm_socket
         self.address = address
+        # database connection
+        self.database = r"../chatProtocol.db"
+
 
     # overriding threading run fuction to process messages received from client
     def run(self):
+        # add messages to database for testing
+        self.add_test_messages_to_database()
         while True:
             try:
                 data = self.comm_socket.recv(1024).rstrip()
@@ -103,13 +110,29 @@ class ChatServerProtocol(threading.Thread):
         # TODO what state should we be in when message has been received and what
         # should the state become?
         # TODO add a try catch statement
-        for message in self.all_messages:
-            sender, receiver, message = message.split(':')
-            if (str(receiver) == str(self.user)):
-                message_to_client = 'SMSG' + sender + ':' + message
-                self.send_to_client(message_to_client)
-                client_response = self.comm_socket.recv(1024)
+        # db_conn = connect_to_database(self.database)
+        print("user id:")
+        # print(self.get_current_user_id())
+        # print(self.get_messages_for_current_user())
+        messages_query = self.get_messages_for_current_user()
+        # TODO add message if no messages are found 'no new messages'
+        for m in messages_query:
+            print("{} {} {}".format(m[0], m[1], m[2]))
+            sender = self.get_username(m[1])
+            message_to_client = "SMSG{}:{}".format(sender, m[2])
+            self.send_to_client(message_to_client)
+            client_response = self.comm_socket.recv(1024)
+            # TODO process response - if success - delete message from db
+            # TODO put try catch around delete message function
+            self.remove_message_from_database(m[0])
         self.send_to_client('255 end of messages')
+        # for message in self.all_messages:
+        #     sender, receiver, message = message.split(':')
+        #     if (str(receiver) == str(self.user)):
+        #         message_to_client = 'SMSG' + sender + ':' + message
+        #         self.send_to_client(message_to_client)
+        #         client_response = self.comm_socket.recv(1024)
+        # self.send_to_client('255 end of messages')
         # TODO send back command response codes
         # empty message variable
         self.all_messages = []
@@ -119,10 +142,11 @@ class ChatServerProtocol(threading.Thread):
         # should the state become?
         # TODO add a try catch statement
         receiver, message = usr_and_msg.split(':')
+        # TODO check to make sure that message from client does not have ":" in it.
         message_to_store = str(self.user) + ':' + receiver + ':' + message
         self.all_messages.append(message_to_store)
         # TODO send back command response codes
-
+        self.send_to_client('200 message sent')
 
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
@@ -133,10 +157,71 @@ class ChatServerProtocol(threading.Thread):
     def send_to_client(self, message):
         self.comm_socket.send(message.encode('utf-8'))
 
+    def connect_to_database(self, db):
+        db_conn = None
+        try:
+            db_conn = sqlite3.connect(db)
+        except Error as e:
+            print(e)
+
+        return db_conn
+
+    def get_user_id(self, user):
+        db_conn = self.connect_to_database(self.database)
+        cur = db_conn.cursor()
+        cur.execute("SELECT rowid FROM user WHERE user=?", (user,))
+        # cur.execute(".tables")
+        user_id = cur.fetchone()
+        print (user_id[0])
+        db_conn.close()
+        return user_id[0]
+
+    def get_username(self, user_id):
+        db_conn = self.connect_to_database(self.database)
+        cur = db_conn.cursor()
+        cur.execute("SELECT user FROM user WHERE rowid=?", (user_id,))
+
+        username = cur.fetchone()
+        print (username[0])
+        db_conn.close()
+        return username[0]
+
+    def get_messages_for_current_user(self):
+        # user_id = int(str(self.get_current_user_id()))
+        user_id = self.get_user_id(self.user)
+        db_conn = self.connect_to_database(self.database)
+        cur = db_conn.cursor()
+        cur.execute("SELECT rowid, sender, message FROM messages WHERE receiver=?", (user_id,))
+        messages = cur.fetchall()
+        # for row in rows:
+        #     print (row)
+        db_conn.close()
+        return messages
+
+    def remove_message_from_database(self, message_id):
+        db_conn = self.connect_to_database(self.database)
+        cur = db_conn.cursor()
+        cur.execute("delete from messages where rowid=?", (message_id,))
+        db_conn.commit()
+        db_conn.close()
+
+
+    def add_test_messages_to_database(self):
+        db_conn = self.connect_to_database(self.database)
+        cur = db_conn.cursor()
+        cur.execute("INSERT INTO messages VALUES(1,2,'Hi George!')")
+        cur.execute("INSERT INTO messages VALUES(2,1,'Hi Pamina')")
+        cur.execute("INSERT INTO messages VALUES(3,1,'Hello Pamina! How are you?')")
+        cur.execute("INSERT INTO messages VALUES(1,3,'I am good! how about you?')")
+        db_conn.commit()
+        db_conn.close()
+
+
 if __name__ == "__main__":
+
     # a socket object using IPv4 (AF_INET)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    #db_conn = connect_to_database(database)
     # get local host name
     servHost = socket.gethostname()
     servPort = 5035
