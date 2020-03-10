@@ -33,6 +33,7 @@ def send_message():
     print("Do not include ':' character in your message. Type your message: ")
     message = str(input())
     # TODO remove any ':' in message
+    # TODO check Size of message make sure it does not go above 1024 plus receiver name
     data_to_send = 'SMSG' + receiver + ':' + message
     s.send(data_to_send.encode('utf-8'))
     # TODO process this response and check for error code
