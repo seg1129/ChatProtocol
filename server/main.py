@@ -160,6 +160,8 @@ class ChatServerProtocol(threading.Thread):
         # TODO send back command response codes
         self.send_to_client('200 message sent')
 
+    # TODO add TERM command here
+    
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
             return True
