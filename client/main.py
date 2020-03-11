@@ -15,11 +15,6 @@ def process_username(username):
     s.send(message.encode('utf-8'))
     while (user_response == None):
         user_response = s.recv(1024) or None
-    #     print("user_response")
-    #     print(user_response)
-    # print("client response:")
-    # print (user_response.decode('ascii'))
-    # print("successfull processed username")
 
 def process_password(password):
     password_command = 'PASS' + password
@@ -44,18 +39,27 @@ def send_message():
 def receive_messages():
     data_to_send = 'RMSG'
     s.send(data_to_send.encode('utf-8'))
-    # print messages to the user untill there are no more messages
+    # show messages to the user untill there are no more messages
     while True:
         server_response = s.recv(1024).decode('ascii')
         done_messages = server_response[:4].strip() or None
-        # if done_messages is 205 this means there are no more messages
+        # if server sends 255 this means that there are no new messages
         if (done_messages == '255'):
+            print("end of new messages\n")
+            break
+        # if server sends 256 this means the user has no new messages
+        if (done_messages == '256'):
+            print("No New Messages\n")
+            break
+        if (done_messages == '500'):
+            print("error receiving messages")
             break
         message = server_response[4:].strip()
         s.send('250 received message'.encode('utf-8'))
+        print(message)
         sender, message = message.split(':')
         print("message from {0}: {1}".format(sender, message))
-    print("end of new messages\n")
+
 
 def process_command(command):
     if (command.lower() == 'send'):
@@ -96,9 +100,9 @@ if __name__ == "__main__":
             print("Type 'send' to send a message to someone")
             print("Type 'receive' to receive messages")
             print("Type 'end' to stop this program")
-            # process_command(str(input()))
             user_input = str(input()).lower()
             if (user_input == 'end'):
+                # TODO send TERM command
                 break
             else:
                 process_command(user_input)

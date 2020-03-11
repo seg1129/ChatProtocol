@@ -25,11 +25,6 @@ class ChatServerProtocol(threading.Thread):
         # hard coded values
         self.usernames = ['Pamina', 'Dolce', 'George']
         self.password = 'ILovePittbulls'
-        # format - 'Sender:Receiver:message'
-        self.all_messages = ['Pamina:Dolce: Hello Pamina! How are you?',
-                            'Dolce:Pamina: I am good! how about you?',
-                            'George:Pamina: Hi Pamina',
-                            'Pamina:George: Hi George!']
         # client socket
         self.comm_socket = comm_socket
         self.address = address
@@ -60,9 +55,8 @@ class ChatServerProtocol(threading.Thread):
                 # client, see design PDU for message structure details
                 cmd = packet_from_client[:4].strip().upper() or None
                 arg = packet_from_client[4:].strip() or None
-                print("command:")
-                print(cmd)
-                if (str(cmd) == '200'):
+
+                if (str(cmd) == '200' or str(cmd) == '250'):
                     logging.info('client received message')
                 else:
                     # retreive function from class in a way that we can call it.
@@ -73,69 +67,87 @@ class ChatServerProtocol(threading.Thread):
                 logging.error('Receive error' + str(err))
 
     def USER(self, user):
-        # TODO make this a try statement
-        if not self.idle:
-            # TODO add this error to the design document
-            self.send_to_client('500 bad command.\r\n')
-        elif not user:
+        try:
+            if not self.idle:
+                # TODO add this error to the design document
+                self.send_to_client('500 bad command.\r\n')
+            elif not user:
+                self.send_to_client('560 error receiving user.\r\n')
+                logging.error('error sending username')
+            else:
+                self.send_to_client('220 received username successfully.\r\n')
+                print("user validated")
+                logging.info('received username successfully')
+                self.user = user
+                self.idle = False
+                self.user_validated = True
+        except:
             self.send_to_client('560 error receiving user.\r\n')
             logging.error('error sending username')
-        else:
-            self.send_to_client('220 received username successfully.\r\n')
-            print("user validated")
-            logging.info('received username successfully')
-            self.user = user
-            self.idle = False
-            self.user_validated = True
 
     def PASS(self, password):
-        # TODO make this a try catch statment
-        if not self.user_validated:
-            self.send_to_client('500 Bad command.\r\n')
-        elif not password:
-            self.send_to_client('565 error authenticating password')
-            logging.error('error receiving password')
-        else:
-            self.user_password = password
-            if self.check_user_cred():
-                print("credentials have been verified")
-                self.send_to_client('230 user authenticated successfully')
+        # self.user_validated = False
+        # TODO rethink this state
+        self.authentication_validated = True
+        try:
+            if not self.user_validated:
+                self.send_to_client('500 Bad command.\r\n')
+            elif not password:
+                self.send_to_client('565 error authenticating password')
+                logging.error('error receiving password')
                 self.user_validated = False
-                self.authentication_validated = True
+                self.idle = True
             else:
-                logging.error('There was an issue with authentication')
+                self.user_password = password
+                if self.check_user_cred():
+                    print("credentials have been verified")
+                    self.send_to_client('230 user authenticated successfully')
+                    self.authentication_validated = False
+                    self.process_command = True
+
+                else:
+                    self.idle = True
+                    self.send_to_client('565 error authenticating password')
+                    logging.error('There was an issue with authentication')
+
+            print("process command")
+            print(self.process_command)
+        except:
+            logging.error('There was an issue with authentication')
+            self.send_to_client('565 error authenticating password')
 
     # This command will search for messages for a user and send them to the client
     def RMSG(self, usr_and_msg):
-        # TODO what state should we be in when message has been received and what
-        # should the state become?
-        # TODO add a try catch statement
-        # db_conn = connect_to_database(self.database)
-        print("user id:")
-        # print(self.get_current_user_id())
-        # print(self.get_messages_for_current_user())
-        messages_query = self.get_messages_for_current_user()
-        # TODO add message if no messages are found 'no new messages'
-        for m in messages_query:
-            print("{} {} {}".format(m[0], m[1], m[2]))
-            sender = self.get_username(m[1])
-            message_to_client = "SMSG{}:{}".format(sender, m[2])
-            self.send_to_client(message_to_client)
-            client_response = self.comm_socket.recv(1024)
-            # TODO process response - if success - delete message from db
-            # TODO put try catch around delete message function
-            self.remove_message_from_database(m[0])
-        self.send_to_client('255 end of messages')
-        # for message in self.all_messages:
-        #     sender, receiver, message = message.split(':')
-        #     if (str(receiver) == str(self.user)):
-        #         message_to_client = 'SMSG' + sender + ':' + message
-        #         self.send_to_client(message_to_client)
-        #         client_response = self.comm_socket.recv(1024)
-        # self.send_to_client('255 end of messages')
-        # TODO send back command response codes
-        # empty message variable
-        self.all_messages = []
+
+        try:
+            if not self.process_command:
+                self.send_to_client('500 Bad command.\r\n')
+
+            else:
+                messages_query = self.get_messages_for_current_user()
+                # if there are no mesages for the user - tell the client.
+                if (messages_query ==[]):
+                    self.send_to_client('256 no new messages')
+                for m in messages_query:
+                    # put query results into variables to be proccessed
+                    sender = self.get_username(m[1])
+                    message = m[2]
+                    message_id = m[0]
+
+                    message_to_client = "SMSG{}:{}".format(sender, message)
+                    self.send_to_client(message_to_client)
+                    client_response = self.comm_socket.recv(1024)
+                    # TODO process response - if success - delete message from db
+
+                    try:
+                        self.remove_message_from_database(message_id)
+                    except:
+                        logging.error("error deleting message with id {}".format(message_id))
+                self.send_to_client('255 end of messages')
+            # TODO send back command response codes - do i need to do this?
+        except:
+            self.send_client('550 error sending chat message to client')
+            logging.error('error sending chat message to client')
 
     def SMSG(self, usr_and_msg):
         # TODO what state should we be in when message has been received and what
@@ -238,8 +250,4 @@ if __name__ == "__main__":
         client_socket.start()
         print("Got a connection from %s" % str(address))
 
-        # msg = 'Sending a message to client \r\n'
-        # print("sent message to client")
-        # client_socket.send_to_client(msg.encode('ascii'))
-        client_socket.send_to_client(msg)
-        # server.close()
+        # client_socket.send_to_client(msg)
