@@ -133,7 +133,7 @@ class ChatServerProtocol(threading.Thread):
                     sender = self.get_username(m[1])
                     message = m[2]
                     message_id = m[0]
-
+                    # TODO if there are more than one : catch this error
                     message_to_client = "SMSG{}:{}".format(sender, message)
                     self.send_to_client(message_to_client)
                     client_response = self.comm_socket.recv(1024)
@@ -161,7 +161,7 @@ class ChatServerProtocol(threading.Thread):
         self.send_to_client('200 message sent')
 
     # TODO add TERM command here
-    
+
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
             return True
