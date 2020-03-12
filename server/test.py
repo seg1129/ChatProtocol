@@ -2,6 +2,12 @@
 
 # Suzanne Gerace
 # test server file
+# TODO The top of each file should contain the class name, date, and purpose of the file.
+# TODO:
+'''Every function should have a comment block about it’s purpose and
+   every file should have a comment block about who wrote the code and
+   it’s purpose.
+'''
 
 import socket
 import time
