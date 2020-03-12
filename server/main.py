@@ -157,13 +157,27 @@ class ChatServerProtocol(threading.Thread):
         # TODO add a try catch statement
         receiver, message = usr_and_msg.split(':')
         # TODO check to make sure that message from client does not have ":" in it.
-        message_to_store = str(self.user) + ':' + receiver + ':' + message
-        self.all_messages.append(message_to_store)
+        self.add_msg_to_database(receiver, message)
         # TODO send back command response codes
         self.send_to_client('200 message sent')
 
     # TODO add TERM command here
 
+    def add_msg_to_database(self, receiver, message):
+        sender = self.user
+        sender_id = self.get_user_id(sender)
+        receiver_id = self.get_user_id(receiver)
+        try:
+            db_conn = self.connect_to_database(self.database)
+            cur = db_conn.cursor()
+            cur.execute("INSERT INTO messages VALUES (?,?,?)", (sender_id, receiver_id, message))
+            db_conn.commit()
+            db_conn.close()
+            return True
+        except Error as e:
+            print(e)
+            logging.error("error adding message to database. message:{}, user: {}".format(message, sender))
+            return False
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
             return True
@@ -188,7 +202,7 @@ class ChatServerProtocol(threading.Thread):
         cur.execute("SELECT rowid FROM user WHERE user=?", (user,))
         # cur.execute(".tables")
         user_id = cur.fetchone()
-        print (user_id[0])
+        # print (user_id[0])
         db_conn.close()
         return user_id[0]
 
