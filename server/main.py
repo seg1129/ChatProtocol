@@ -251,5 +251,3 @@ if __name__ == "__main__":
         client_socket = ChatServerProtocol(clientsocket, address)
         client_socket.start()
         print("Got a connection from %s" % str(address))
-
-        # client_socket.send_to_client(msg)
