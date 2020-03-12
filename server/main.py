@@ -1,7 +1,12 @@
 #!/usr/bin/python3
 # Suzanne Gerace
 # This is the server main file
-
+# TODO: The top of each file should contain the class name, date, and purpose of the file.
+# TODO:
+'''Every function should have a comment block about it’s purpose and
+   every file should have a comment block about who wrote the code and
+   it’s purpose.
+'''
 import socket
 import threading
 import logging
@@ -39,7 +44,6 @@ class ChatServerProtocol(threading.Thread):
         while True:
             try:
                 data = self.comm_socket.recv(1024).rstrip()
-                print(data)
                 try:
                     packet_from_client = data.decode('utf-8')
                 except AttributeError:
@@ -76,7 +80,6 @@ class ChatServerProtocol(threading.Thread):
                 logging.error('error sending username')
             else:
                 self.send_to_client('220 received username successfully.\r\n')
-                print("user validated")
                 logging.info('received username successfully')
                 self.user = user
                 self.idle = False
@@ -88,16 +91,17 @@ class ChatServerProtocol(threading.Thread):
     def PASS(self, password):
         # self.user_validated = False
         # TODO rethink this state
-        self.authentication_validated = True
+
         try:
             if not self.user_validated:
                 self.send_to_client('500 Bad command.\r\n')
             elif not password:
                 self.send_to_client('565 error authenticating password')
-                logging.error('error receiving password')
+                logging.error("error receiving password. user:{}".format(self.user))
                 self.user_validated = False
                 self.idle = True
             else:
+                self.authentication_validated = True
                 self.user_password = password
                 if self.check_user_cred():
                     print("credentials have been verified")
@@ -108,12 +112,10 @@ class ChatServerProtocol(threading.Thread):
                 else:
                     self.idle = True
                     self.send_to_client('565 error authenticating password')
-                    logging.error('There was an issue with authentication')
+                    logging.error("There was an issue with authentication. user:{}".format(self.user))
 
-            print("process command")
-            print(self.process_command)
         except:
-            logging.error('There was an issue with authentication')
+            logging.error("There was an issue with authentication user:{}".format(self.user))
             self.send_to_client('565 error authenticating password')
 
     # This command will search for messages for a user and send them to the client
