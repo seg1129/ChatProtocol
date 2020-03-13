@@ -25,7 +25,7 @@ class ChatServerProtocol(threading.Thread):
         self.authentication_validated = False
         self.process_command = False
         self.sending_message = False
-        self.downloading_message = False
+        self.receiving_message = False
         self.error_processing = False
         # hard coded values
         self.usernames = ['Pamina', 'Dolce', 'George']
@@ -63,6 +63,8 @@ class ChatServerProtocol(threading.Thread):
                 if (str(cmd) == '200' or str(cmd) == '250'):
                     logging.info('client received message')
                 else:
+                    if (cmd == 'TERM'):
+                        break
                     # retreive function from class in a way that we can call it.
                     func = getattr(self, cmd)
                     func(arg)
@@ -82,50 +84,43 @@ class ChatServerProtocol(threading.Thread):
                 self.send_to_client('220 received username successfully.\r\n')
                 logging.info('received username successfully')
                 self.user = user
-                self.idle = False
-                self.user_validated = True
+                self.change_state_to_user_validated()
         except:
             self.send_to_client('560 error receiving user.\r\n')
             logging.error('error sending username')
 
     def PASS(self, password):
-        # self.user_validated = False
-        # TODO rethink this state
-
         try:
             if not self.user_validated:
                 self.send_to_client('500 Bad command.\r\n')
             elif not password:
                 self.send_to_client('565 error authenticating password')
                 logging.error("error receiving password. user:{}".format(self.user))
-                self.user_validated = False
-                self.idle = True
+                self.change_state_to_idle()
             else:
-                self.authentication_validated = True
+                self.change_state_to_auth_validated()
                 self.user_password = password
                 if self.check_user_cred():
                     print("credentials have been verified")
                     self.send_to_client('230 user authenticated successfully')
-                    self.authentication_validated = False
-                    self.process_command = True
-
+                    self.change_state_to_process_command()
                 else:
-                    self.idle = True
+                    self.change_state_to_idle()
                     self.send_to_client('565 error authenticating password')
                     logging.error("There was an issue with authentication. user:{}".format(self.user))
 
         except:
+            self.change_state_to_idle()
             logging.error("There was an issue with authentication user:{}".format(self.user))
             self.send_to_client('565 error authenticating password')
 
     # This command will search for messages for a user and send them to the client
     def RMSG(self, usr_and_msg):
-
         try:
-            if not self.process_command:
+            if (self.process_command != True):
                 self.send_to_client('500 Bad command.\r\n')
-
             else:
+                self.change_state_to_receiving_message()
                 messages_query = self.get_messages_for_current_user()
                 # if there are no mesages for the user - tell the client.
                 if (messages_query ==[]):
@@ -140,44 +135,54 @@ class ChatServerProtocol(threading.Thread):
                     self.send_to_client(message_to_client)
                     client_response = self.comm_socket.recv(1024)
                     # TODO process response - if success - delete message from db
-
                     try:
                         self.remove_message_from_database(message_id)
                     except:
                         logging.error("error deleting message with id {}".format(message_id))
                 self.send_to_client('255 end of messages')
+                self.change_state_to_process_command()
             # TODO send back command response codes - do i need to do this?
         except:
             self.send_client('550 error sending chat message to client')
             logging.error('error sending chat message to client')
 
     def SMSG(self, usr_and_msg):
-        # TODO what state should we be in when message has been received and what
-        # should the state become?
-        # TODO add a try catch statement
-        receiver, message = usr_and_msg.split(':')
-        # TODO check to make sure that message from client does not have ":" in it.
-        self.add_msg_to_database(receiver, message)
-        # TODO send back command response codes
-        self.send_to_client('200 message sent')
-
-    # TODO add TERM command here
+        try:
+            if (self.process_command != True):
+                self.send_to_client('500 Bad command.\r\n')
+            else:
+                self.change_state_to_sending_msg()
+                # TODO add a try catch statement
+                receiver, message = usr_and_msg.split(':')
+                # TODO check to make sure that message from client does not have ":" in it.
+                self.add_msg_to_database(receiver, message)
+                # TODO send back command response codes
+                self.send_to_client('200 message sent')
+                self.change_state_to_process_command()
+        except:
+            self.send_client('550 error sending chat message to client')
+            logging.error('error sending chat message to client')
 
     def add_msg_to_database(self, receiver, message):
-        sender = self.user
-        sender_id = self.get_user_id(sender)
-        receiver_id = self.get_user_id(receiver)
-        try:
-            db_conn = self.connect_to_database(self.database)
-            cur = db_conn.cursor()
-            cur.execute("INSERT INTO messages VALUES (?,?,?)", (sender_id, receiver_id, message))
-            db_conn.commit()
-            db_conn.close()
-            return True
-        except Error as e:
-            print(e)
-            logging.error("error adding message to database. message:{}, user: {}".format(message, sender))
-            return False
+        # make sure state is sending message before adding message to database
+        if (self.sending_message):
+            sender = self.user
+            sender_id = self.get_user_id(sender)
+            receiver_id = self.get_user_id(receiver)
+            try:
+                db_conn = self.connect_to_database(self.database)
+                cur = db_conn.cursor()
+                cur.execute("INSERT INTO messages VALUES (?,?,?)", (sender_id, receiver_id, message))
+                db_conn.commit()
+                db_conn.close()
+                return True
+            except Error as e:
+                print(e)
+                logging.error("error adding message to database. message:{}, user: {}".format(message, sender))
+                return False
+        else:
+            self.send_to_client('500 Bad command.\r\n')
+
     def check_user_cred(self):
         if (self.user_password == self.password and self.user in self.usernames):
             return True
@@ -193,48 +198,53 @@ class ChatServerProtocol(threading.Thread):
             db_conn = sqlite3.connect(db)
         except Error as e:
             print(e)
-
         return db_conn
 
     def get_user_id(self, user):
         db_conn = self.connect_to_database(self.database)
         cur = db_conn.cursor()
         cur.execute("SELECT rowid FROM user WHERE user=?", (user,))
-        # cur.execute(".tables")
         user_id = cur.fetchone()
-        # print (user_id[0])
         db_conn.close()
         return user_id[0]
 
     def get_username(self, user_id):
-        db_conn = self.connect_to_database(self.database)
-        cur = db_conn.cursor()
-        cur.execute("SELECT user FROM user WHERE rowid=?", (user_id,))
-
-        username = cur.fetchone()
-        print (username[0])
-        db_conn.close()
-        return username[0]
+        if self.receiving_message:
+            db_conn = self.connect_to_database(self.database)
+            cur = db_conn.cursor()
+            cur.execute("SELECT user FROM user WHERE rowid=?", (user_id,))
+            username = cur.fetchone()
+            print (username[0])
+            db_conn.close()
+            return username[0]
+        else:
+            self.error_processing = True
 
     def get_messages_for_current_user(self):
-        # user_id = int(str(self.get_current_user_id()))
-        user_id = self.get_user_id(self.user)
-        db_conn = self.connect_to_database(self.database)
-        cur = db_conn.cursor()
-        cur.execute("SELECT rowid, sender, message FROM messages WHERE receiver=?", (user_id,))
-        messages = cur.fetchall()
-        # for row in rows:
-        #     print (row)
-        db_conn.close()
-        return messages
+        if self.receiving_message:
+            # user_id = int(str(self.get_current_user_id()))
+            user_id = self.get_user_id(self.user)
+            db_conn = self.connect_to_database(self.database)
+            cur = db_conn.cursor()
+            cur.execute("SELECT rowid, sender, message FROM messages WHERE receiver=?", (user_id,))
+            messages = cur.fetchall()
+            # for row in rows:
+            #     print (row)
+            db_conn.close()
+            return messages
+        else:
+            self.error_processing = True
 
     def remove_message_from_database(self, message_id):
-        db_conn = self.connect_to_database(self.database)
-        cur = db_conn.cursor()
-        cur.execute("delete from messages where rowid=?", (message_id,))
-        db_conn.commit()
-        db_conn.close()
-
+        # check state before connecting to database to remove messages
+        if self.receiving_message:
+            db_conn = self.connect_to_database(self.database)
+            cur = db_conn.cursor()
+            cur.execute("delete from messages where rowid=?", (message_id,))
+            db_conn.commit()
+            db_conn.close()
+        else:
+            self.error_processing = True
 
     def add_test_messages_to_database(self):
         db_conn = self.connect_to_database(self.database)
@@ -245,6 +255,70 @@ class ChatServerProtocol(threading.Thread):
         cur.execute("INSERT INTO messages VALUES(1,3,'I am good! how about you?')")
         db_conn.commit()
         db_conn.close()
+
+    # change of state functions ###############################################
+    def change_state_to_idle(self):
+        self.idle = True
+        self.user_validated = False
+        self.authentication_validated = False
+        self.process_command = False
+        self.sending_message = False
+        self.receiving_message = False
+        self.error_processing = False
+
+    def change_state_to_user_validated(self):
+        self.idle = False
+        self.user_validated = True
+        self.authentication_validated = False
+        self.process_command = False
+        self.sending_message = False
+        self.receiving_message = False
+        self.error_processing = False
+
+    def change_state_to_auth_validated(self):
+        self.idle = False
+        self.user_validated = False
+        self.authentication_validated = True
+        self.process_command = False
+        self.sending_message = False
+        self.receiving_message = False
+        self.error_processing = False
+
+    def change_state_to_process_command(self):
+        self.idle = False
+        self.user_validated = False
+        self.authentication_validated = False
+        self.process_command = True
+        self.sending_message = False
+        self.receiving_message = False
+        self.error_processing = False
+
+    def change_state_to_sending_msg(self):
+        self.idle = False
+        self.user_validated = False
+        self.authentication_validated = False
+        self.process_command = False
+        self.sending_message = True
+        self.receiving_message = False
+        self.error_processing = False
+
+    def change_state_to_receiving_message(self):
+        self.idle = False
+        self.user_validated = False
+        self.authentication_validated = False
+        self.process_command = False
+        self.sending_message = False
+        self.receiving_message = True
+        self.error_processing = False
+
+    def change_state_to_error_processing(self):
+        self.idle = False
+        self.user_validated = False
+        self.authentication_validated = False
+        self.process_command = False
+        self.sending_message = False
+        self.receiving_message = False
+        self.error_processing = True
 
 
 if __name__ == "__main__":
