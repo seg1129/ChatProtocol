@@ -87,6 +87,12 @@ class chatProtocolClient:
             sender, message = message.split(':')
             print("Message from {0}: {1}".format(sender, message))
 
+    def end(self):
+        print("close")
+        message = 'TERM'
+        s.send(message.encode('utf-8'))
+        s.close()
+
     # Functions called directly in MAIN ###########################################
     def process_username(self, username):
         username_succeed = False
