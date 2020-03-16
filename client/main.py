@@ -11,11 +11,6 @@ in the requirements document that is implemented in this file will be labeled
 in a comment starting with, 'Satisfying Requirement <requirement Number>' and
 can be mapped back to specific requirement in requirements document.
 '''
-# TODO:
-'''Every function should have a comment block about it’s purpose and
-   every file should have a comment block about who wrote the code and
-   it’s purpose.
-'''
 
 import socket
 import time
@@ -71,20 +66,24 @@ class chatProtocolClient:
         # if we receive a 500 then there was a problem with the server processing
         elif (response_code == '500'):
             print("error receiving messages")
+            s.send('201 caught error'.encode('utf-8'))
             break_loop = True
         return break_loop
 
     def process_response_smsg(self, server_response):
         server_response_code = str(server_response[:3].strip())
-        print(server_response_code)
         if (server_response_code == '500'):
             print("bad command\n")
-        elif(server_response_code == '555'):
-            print(": found in message, this is an error\n")
-        elif(server_response_code == '550'):
+            s.send('201 caught error'.encode('utf-8'))
+        elif(server_response_code == '546'):
+            print(": found in message, this is an error. Message could not be sent\n")
+            s.send('201 caught error'.encode('utf-8'))
+        elif(server_response_code == '540'):
             print("server had error sending message\n")
+            s.send('201 caught error'.encode('utf-8'))
         elif(server_response_code == '545'):
-            print("user selected to receive message does not exist\n")
+            print("user selected to receive message does not exist. Message could not be sent\n")
+            s.send('201 caught error'.encode('utf-8'))
         else:
             print("your message has been sent\n")
 
@@ -154,6 +153,7 @@ class chatProtocolClient:
                 break_loop = self.process_response_rmsg(server_response_code)
                 if (break_loop):
                     break
+
                 message = server_response[4:].strip()
                 # this response code to server satifies PDU requirment 9e.
                 s.send('250 received message'.encode('utf-8'))
@@ -161,6 +161,7 @@ class chatProtocolClient:
                 print("Message from {0}: {1}".format(sender, message))
         except:
             print("error receiving messages")
+
 
     def end(self):
         print("close")

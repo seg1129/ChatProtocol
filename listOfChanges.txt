@@ -1,16 +1,26 @@
 List of changes from the design document
 
-- if command is out of order, or command does not exist return 500
-- not using telnet string, just using utf-8
-- PDU length will be 1024 bytes - first 4 will be the command or error code
-- change name of downloading command to receive message... makes more sense.
-  so instead of DMSG it will be RMSG
-- added 255 message when done sending messages to client when requesting all messages
-- added 256 no new messages when client sends request to RMSG
-- add new message to return to 'process command' from process error
+Added Response Error Messages:
+500: If command is out of order, or command does not exist
+545: error sending message - receiver user does not exist
+546: too many : characters found in PDU from client
+
+Added Response Success Messages:
+255: end of new messages
+256: no new messages
+201: Recovered from error
+
+Other Changes:
+not using telnet string, just using utf-8
+PDU length will be 1024 bytes - first 4 will be the command or error code
+change name of downloading command to receive message. So instead of DMSG it will be RMSG
+Updated CP Architecture Layering to represent what was implemented.
+Added more details in PDU, explicitly identifying each byte allocation.
+Updated DFA to recover from ‘error processing’ state
+
 
 ###############################################################################
-resources:
+Code resources:
   https://docs.python.org/3/library/sqlite3.html
   https://docs.python.org/3.5/library/socket.html
   https://docs.python.org/3/library/threading.html
