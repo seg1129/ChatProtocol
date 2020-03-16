@@ -1,7 +1,15 @@
 #!/usr/bin/python3
 # Suzanne Gerace
-# This is the server main file
-# TODO: The top of each file should contain the class name, date, and purpose of the file.
+# 3/15/2020
+'''
+The purpose of this file is to send, receive, process commands to be performed
+by the server of the chat protocol. Design elements of the server can be found
+in the document entitled Updated_S_Gerace.pdf. The requirements can be found
+in the document entitled Requirements_S_Gerace.PDF. Each requirement identified
+in the requirements document that is implemented in this file will be labeled
+in a comment starting with, 'Satisfying Requirement <requirement Number>' and
+can be mapped back to specific requirement in requirements document.
+'''
 # TODO:
 '''Every function should have a comment block about it’s purpose and
    every file should have a comment block about who wrote the code and
@@ -16,10 +24,11 @@ from sqlite3 import Error
 logging.basicConfig(filename='server.log', level=logging.DEBUG)
 
 # using python thread libray to ensure protocol can handle multiple clients properly
+# satisfying requirement 11.
 class ChatServerProtocol(threading.Thread):
     def __init__(self, comm_socket, address):
         threading.Thread.__init__(self)
-        # DFA Protocol States
+        # DFA Protocol States- Satisfying Requirement 1a
         self.idle = True
         self.user_validated = False
         self.authentication_validated = False
@@ -41,6 +50,8 @@ class ChatServerProtocol(threading.Thread):
     def run(self):
         # add messages to database for testing
         self.add_test_messages_to_database()
+        # when starting new thread set state to idle - Satisfying Requirement 1a
+        self.change_state_to_idle()
         while True:
             try:
                 data = self.comm_socket.recv(1024).rstrip()
@@ -59,79 +70,126 @@ class ChatServerProtocol(threading.Thread):
                 # client, see design PDU for message structure details
                 cmd = packet_from_client[:4].strip().upper() or None
                 arg = packet_from_client[4:].strip() or None
-
+                print(cmd)
                 if (str(cmd) == '200' or str(cmd) == '250'):
                     logging.info('client received message')
                 else:
                     if (cmd == 'TERM'):
-                        break
+                        if (self.process_command or self.error_processing):
+                            # Satisfying Requirement 1a
+                            self.change_state_to_idle()
+                            # removing thread when receiving TERM command from
+                            # client. Satisfying requirement 7b.
+                            break
                     # retreive function from class in a way that we can call it.
                     func = getattr(self, cmd)
                     func(arg)
             except AttributeError as err:
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('500 error.\r\n')
                 logging.error('Receive error' + str(err))
 
+    # Function for server to receive and store username provided by client.
+    # Satisfying requirement 4b
     def USER(self, user):
         try:
+            # check state before performing any action-Satisfying Requirement 1b
             if not self.idle:
                 # TODO add this error to the design document
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('500 bad command.\r\n')
             elif not user:
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('560 error receiving user.\r\n')
                 logging.error('error sending username')
             else:
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('220 received username successfully.\r\n')
                 logging.info('received username successfully')
                 self.user = user
+                # If successfully received user change state
+                # Satisfying Requirement 1a
                 self.change_state_to_user_validated()
         except:
+            # sending response code to client satisfying requirement 10a.
             self.send_to_client('560 error receiving user.\r\n')
             logging.error('error sending username')
 
+    # Function for server to receive and store password from client and validate
+    # user credentials. Satisfying Requirement 4e.
     def PASS(self, password):
         try:
+            # make sure state is at 'user_validated' before performing any action
+            # Satisfying Requirement 1b
             if not self.user_validated:
+                # send response to client Satisfying Requirement 4f
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('500 Bad command.\r\n')
             elif not password:
+                # send response to client Satisfying Requirement 4f
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('565 error authenticating password')
                 logging.error("error receiving password. user:{}".format(self.user))
+                # if there is an error receivng password from client, change
+                # state to idle. Satisfying Requirement 1a
                 self.change_state_to_idle()
             else:
+                # if password was received from client, change state to
+                # 'authentication validated', Satisfying Requirement 1a
                 self.change_state_to_auth_validated()
                 self.user_password = password
                 if self.check_user_cred():
                     print("credentials have been verified")
+                    # send response to client Satisfying Requirement 4f
+                    # sending response code to client satisfying requirement 10a.
                     self.send_to_client('230 user authenticated successfully')
                     self.change_state_to_process_command()
                 else:
+                    # if there is an error authenticating user, change
+                    # state to idle. Satisfying Requirement 1a
                     self.change_state_to_idle()
+                    # send response to client Satisfying Requirement 4f
+                    # sending response code to client satisfying requirement 10a.
                     self.send_to_client('565 error authenticating password')
                     logging.error("There was an issue with authentication. user:{}".format(self.user))
 
         except:
+            # if there is an error authenticating user, change
+            # state to idle. Satisfying Requirement 1a
             self.change_state_to_idle()
             logging.error("There was an issue with authentication user:{}".format(self.user))
+            # sending response code to client satisfying requirement 10a.
             self.send_to_client('565 error authenticating password')
 
     # This command will search for messages for a user and send them to the client
+    # satisfying requirement 6b.
     def RMSG(self, usr_and_msg):
         try:
+            # make sure state is at 'process_command' before performing any action
+            # Satisfying Requirement 1b
             if (self.process_command != True):
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('500 Bad command.\r\n')
             else:
+                # updating state to receiving messages. Satisfying Requirement 1a
                 self.change_state_to_receiving_message()
                 messages_query = self.get_messages_for_current_user()
                 # if there are no mesages for the user - tell the client.
+                # Satisfying requirement 6f.
                 if (messages_query ==[]):
+                    # sending response code to client satisfying requirement 10a.
                     self.send_to_client('256 no new messages')
+                # if new messages for given user is found in the database, send
+                # each message to the client one at a time. Satisfying
+                # Requirement 6c.
                 for m in messages_query:
                     # put query results into variables to be proccessed
                     sender = self.get_username(m[1])
                     message = m[2]
                     message_id = m[0]
                     # TODO if there are more than one : catch this error
-                    message_to_client = "SMSG{}:{}".format(sender, message)
+                    # format of this data unit to client satisfying requirement 10b
+                    message_to_client = "RMSG{}:{}".format(sender, message)
                     self.send_to_client(message_to_client)
                     client_response = self.comm_socket.recv(1024)
                     # TODO process response - if success - delete message from db
@@ -139,36 +197,60 @@ class ChatServerProtocol(threading.Thread):
                         self.remove_message_from_database(message_id)
                     except:
                         logging.error("error deleting message with id {}".format(message_id))
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('255 end of messages')
+                # once process is completed successfully, change state to process command
+                # satisfying requirement 1a
                 self.change_state_to_process_command()
             # TODO send back command response codes - do i need to do this?
         except:
+            # sending response code to client satisfying requirement 10a.
             self.send_client('550 error sending chat message to client')
             logging.error('error sending chat message to client')
 
     def SMSG(self, usr_and_msg):
         try:
+            # make sure state is at 'process_command' before performing any action
+            # Satisfying Requirement 1b
             if (self.process_command != True):
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('500 Bad command.\r\n')
             else:
+                # update state to 'sending message'. satisfying requirement 1a
                 self.change_state_to_sending_msg()
-                # TODO add a try catch statement
-                receiver, message = usr_and_msg.split(':')
-                # TODO check to make sure that message from client does not have ":" in it.
+                try:
+                    # parsing data received from client satisfying requirement 5e
+                    receiver, message = usr_and_msg.split(':')
+                except:
+                    #TODO add response message in design document
+                    # sending response code to client satisfying requirement 10a.
+                    self.send_to_client('555 too many : characters found in PDU from client')
+                    logging.error('too many : characters found in PDU from client')
+                # adds message, receiver and sender to database satisfying
+                # requirement 5f
                 self.add_msg_to_database(receiver, message)
-                # TODO send back command response codes
+                # send client response identifying status of request. satisfying
+                # requirement 5g
+                # sending response code to client satisfying requirement 10a.
                 self.send_to_client('200 message sent')
+                # update to 'process command' when sending message action is
+                # complete. Satisfying Requirement 1a
                 self.change_state_to_process_command()
         except:
+            # sending response code to client satisfying requirement 10a.
             self.send_client('550 error sending chat message to client')
             logging.error('error sending chat message to client')
 
     def add_msg_to_database(self, receiver, message):
         # make sure state is sending message before adding message to database
+        # Satisfying Requrement 1b
         if (self.sending_message):
             sender = self.user
             sender_id = self.get_user_id(sender)
             receiver_id = self.get_user_id(receiver)
+            if (receiver_id == None):
+                self.send_to_client('545 receiver user does not exist.\r\n')
+                print("user does not exist")
             try:
                 db_conn = self.connect_to_database(self.database)
                 cur = db_conn.cursor()
@@ -181,6 +263,7 @@ class ChatServerProtocol(threading.Thread):
                 logging.error("error adding message to database. message:{}, user: {}".format(message, sender))
                 return False
         else:
+            # sending response code to client satisfying requirement 10a.
             self.send_to_client('500 Bad command.\r\n')
 
     def check_user_cred(self):
@@ -204,11 +287,16 @@ class ChatServerProtocol(threading.Thread):
         db_conn = self.connect_to_database(self.database)
         cur = db_conn.cursor()
         cur.execute("SELECT rowid FROM user WHERE user=?", (user,))
-        user_id = cur.fetchone()
+        user_id = cur.fetchone() or None
         db_conn.close()
-        return user_id[0]
+        if (user_id == None):
+            return None
+        else:
+            return user_id[0]
 
     def get_username(self, user_id):
+        # make sure state is 'receiving messages' before getting username from
+        # database. Satisfying Requirement 1b
         if self.receiving_message:
             db_conn = self.connect_to_database(self.database)
             cur = db_conn.cursor()
@@ -218,7 +306,9 @@ class ChatServerProtocol(threading.Thread):
             db_conn.close()
             return username[0]
         else:
-            self.error_processing = True
+            # if there is an issue getting username from database, update state
+            # to error_processing. Satisfying Requirement 1a
+            self.change_state_to_error_processing()
 
     def get_messages_for_current_user(self):
         if self.receiving_message:
@@ -233,7 +323,9 @@ class ChatServerProtocol(threading.Thread):
             db_conn.close()
             return messages
         else:
-            self.error_processing = True
+            # if there is an issue getting messages from database, update state
+            # to error_processing. Satisfying Requirement 1a
+            self.change_state_to_error_processing()
 
     def remove_message_from_database(self, message_id):
         # check state before connecting to database to remove messages
@@ -244,7 +336,9 @@ class ChatServerProtocol(threading.Thread):
             db_conn.commit()
             db_conn.close()
         else:
-            self.error_processing = True
+            # if there is an issue deleting messages from database, update state
+            # to error_processing. Satisfying Requirement 1a
+            self.change_state_to_error_processing()
 
     def add_test_messages_to_database(self):
         db_conn = self.connect_to_database(self.database)
@@ -257,6 +351,7 @@ class ChatServerProtocol(threading.Thread):
         db_conn.close()
 
     # change of state functions ###############################################
+    # Satisfying Requirement 1a
     def change_state_to_idle(self):
         self.idle = True
         self.user_validated = False
@@ -266,6 +361,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = False
         self.error_processing = False
 
+    # Satisfying Requirement 1a
     def change_state_to_user_validated(self):
         self.idle = False
         self.user_validated = True
@@ -275,6 +371,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = False
         self.error_processing = False
 
+    # Satisfying Requirement 1a
     def change_state_to_auth_validated(self):
         self.idle = False
         self.user_validated = False
@@ -284,6 +381,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = False
         self.error_processing = False
 
+    # Satisfying Requirement 1a
     def change_state_to_process_command(self):
         self.idle = False
         self.user_validated = False
@@ -293,6 +391,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = False
         self.error_processing = False
 
+    # Satisfying Requirement 1a
     def change_state_to_sending_msg(self):
         self.idle = False
         self.user_validated = False
@@ -302,6 +401,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = False
         self.error_processing = False
 
+    # Satisfying Requirement 1a
     def change_state_to_receiving_message(self):
         self.idle = False
         self.user_validated = False
@@ -311,6 +411,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = True
         self.error_processing = False
 
+    # Satisfying Requirement 1a
     def change_state_to_error_processing(self):
         self.idle = False
         self.user_validated = False
@@ -320,7 +421,7 @@ class ChatServerProtocol(threading.Thread):
         self.receiving_message = False
         self.error_processing = True
 
-
+# main function to initalize server program. Satisfying Requirement 2
 if __name__ == "__main__":
 
     # a socket object using IPv4 (AF_INET)
