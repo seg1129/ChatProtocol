@@ -26,7 +26,7 @@ On the Client side, the user input is always checked, and if client receives use
 on the server side, the client command send to the server always checks the state of the protocol before performing any function. If the state is not correct for the command, or the command does not exist a '500 bad command' error is returned. A test file was created to automate this process and continue to test as implementing protocol.
 
 ### Testing
- Two actions were taken to test the protocol against fuzzing.
+ three actions were taken to test the protocol against fuzzing.
 1. Attempt to input wrong commands into the client User Interface. If a command was unexpected than an error message would show for the user.
 2. Attempt to input wrong commands that do not exist in direct contact with the client, and it will always return '500 bad command' error response.
 3. Attempt to put in correct commands out of order. This will also resulted consistently with a '500 bad command' error response.
